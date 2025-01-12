@@ -126,14 +126,67 @@ async function run() {
     // manage plant quantity
     app.patch('/plants/quantity/:id', verifyToken, async (req, res) => {
       const id = req.params.id;
-      const { quantityToUpdate } = req.body;
-      
+      const { quantityToUpdate, status } = req.body;
       const filter = { _id: new ObjectId(id) };
       let updatedDoc = {
         $inc: { quantity: -quantityToUpdate }
       }
+      if (status === 'increase') {
+        updatedDoc = {
+          $inc: { quantity: quantityToUpdate }
+        }
+      }
 
       const result = await plantCollection.updateOne(filter, updatedDoc)
+      res.send(result)
+    })
+
+    // get all order from specific customar
+    app.get('/customar-order/:email', verifyToken, async (req, res) => {
+      const email = req.params.email;
+      const query = { 'customar.email': email };
+      const result = await orderCollection.aggregate([
+        {
+          $match: query,
+        },
+        {
+          $addFields: {
+            plantId: { $toObjectId: '$plantId' },
+          }
+        },
+        {
+          $lookup: {
+            from: 'plants',
+            localField: 'plantId',
+            foreignField: '_id',
+            as: 'plants'
+          }
+        },
+        { $unwind: '$plants' },
+        {
+          $addFields: {
+            name: '$plants.name',
+            image: '$plants.image',
+            category: '$plants.category',
+          }
+        },
+        {
+          $project: {
+            plants: 0
+          }
+        }
+      ]).toArray();
+      res.send(result)
+    })
+
+    // delete or cancle an order
+    app.delete('/orders/:id', verifyToken, async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const order = await orderCollection.findOne(query);
+      if (order.status === 'Delivered') return res.status(409).send({ message: "Can't remove the product, This item already delivered!" });
+
+      const result = await orderCollection.deleteOne(query);
       res.send(result)
     })
 
