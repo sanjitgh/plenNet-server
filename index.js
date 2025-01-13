@@ -190,6 +190,32 @@ async function run() {
       res.send(result)
     })
 
+    // manage user status and role
+    app.patch('/users/:email', verifyToken, async (req, res) => {
+      const email = req.params.email;
+      const query = { email };
+
+      const user = await userCollection.findOne(query);
+      if (!user || user?.status === 'Requested') {
+        return res.status(400).send('You have already requested, please wait!')
+      }
+
+      const updatedDoc = {
+        $set: {
+          status: 'Requested',
+        }
+      }
+      const result = await userCollection.updateOne(query, updatedDoc);
+      res.send(result)
+    })
+
+    // get user role
+    app.get('/users/role/:email', async (req, res) => {
+      const email = req.params.email;
+      const result = await userCollection.findOne({ email })
+      res.send({ role: result?.role })
+    })
+
 
     console.log(
       'Pinged your deployment. You successfully connected to MongoDB!'
